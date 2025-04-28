@@ -28,7 +28,9 @@ export default function DashboardPage() {
   return (
     <main className="flex h-screen bg-background">
       <Sidebar />
-      <Dashboard />
+      <div className="flex-1 overflow-auto">
+        <Dashboard />
+      </div>
     </main>
   )
 }

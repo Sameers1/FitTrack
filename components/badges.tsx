@@ -133,7 +133,7 @@ export function Badges() {
 
   const filteredBadges =
     activeTab === "all"
-      ? badges
+      ? badges.filter(badge => !badge.achieved)
       : activeTab === "achieved"
         ? badges.filter((badge) => badge.achieved)
         : badges.filter((badge) => !badge.achieved)

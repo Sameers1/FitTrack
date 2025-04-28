@@ -20,14 +20,17 @@ import {
   User,
   Dumbbell,
   Heart,
+  Bot,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useMobile } from "@/hooks/use-mobile"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { supabase } from "@/lib/supabase"
+import { AiFitnessAssistant } from "@/components/ai-fitness-assistant"
 
 // Update the navItems array to mark certain items as "coming soon" and remove Settings
 const navItems = [
@@ -143,6 +146,57 @@ export function Sidebar() {
         </div>
       </div>
 
+      <div className="p-2">
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button
+                    className={cn(
+                      "group flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
+                      "bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 hover:from-violet-500/20 hover:to-fuchsia-500/20",
+                      "border border-violet-500/20",
+                      collapsed && "justify-center px-2"
+                    )}
+                  >
+                    <div className="flex h-6 w-6 items-center justify-center rounded bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/20 animate-pulse">
+                      <Bot className="h-4 w-4" />
+                    </div>
+                    {!collapsed && (
+                      <span className="bg-gradient-to-r from-violet-500 to-fuchsia-500 bg-clip-text text-transparent font-semibold">
+                        AI Assistant
+                      </span>
+                    )}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[800px] h-[80vh] p-0 gap-0 bg-gradient-to-b from-background to-background/95 backdrop-blur-xl border-violet-500/20">
+                  <DialogHeader className="px-6 py-3 border-b border-violet-500/20 bg-gradient-to-r from-violet-500/5 to-fuchsia-500/5">
+                    <DialogTitle className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/20">
+                        <Bot className="h-5 w-5 text-white" />
+                      </div>
+                      <span className="bg-gradient-to-r from-violet-500 to-fuchsia-500 bg-clip-text text-transparent text-xl">
+                        AI Fitness Assistant
+                      </span>
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="relative flex-1 h-full">
+                    <div className="absolute inset-0 bg-gradient-to-b from-violet-500/5 via-fuchsia-500/5 to-violet-500/5 opacity-20 pointer-events-none" />
+                    <AiFitnessAssistant />
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </TooltipTrigger>
+            {collapsed && (
+              <TooltipContent side="right">
+                <span className="font-semibold">AI Fitness Assistant</span>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+
       <nav className="flex-1 overflow-y-auto p-2">
         <TooltipProvider delayDuration={0}>
           {navItems.map((category) => (
@@ -212,7 +266,7 @@ export function Sidebar() {
         </TooltipProvider>
       </nav>
 
-      <div className={cn("mt-auto border-t p-4 transition-all duration-300", collapsed && "flex justify-center")}>
+      <div className={cn("border-t p-4 transition-all duration-300", collapsed && "flex justify-center")}>
         <Button
           variant="ghost"
           className={cn(
