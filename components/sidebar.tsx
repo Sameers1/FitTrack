@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
   BarChart3,
@@ -26,6 +26,8 @@ import { useMobile } from "@/hooks/use-mobile"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { supabase } from "@/lib/supabase"
 
 // Update the navItems array to mark certain items as "coming soon" and remove Settings
 const navItems = [
@@ -60,8 +62,15 @@ const navItems = [
 // Update the Sidebar component to improve animations and add "coming soon" badges
 export function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+  const supabase = createClientComponentClient()
   const isMobile = useMobile()
   const [collapsed, setCollapsed] = useState(false)
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.replace("/auth/login")
+  }
 
   const SidebarContent = () => (
     <div
@@ -189,6 +198,8 @@ export function Sidebar() {
             "w-full justify-start text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all duration-200",
             collapsed && "justify-center px-2",
           )}
+          onClick={handleLogout}
+          type="button"
         >
           <LogOut className="mr-2 h-4 w-4" />
           <span
