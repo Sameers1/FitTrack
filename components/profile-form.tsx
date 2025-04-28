@@ -22,7 +22,9 @@ const profileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   age: z.string().min(1, { message: "Age is required." }),
   gender: z.string({ required_error: "Please select a gender." }),
-  location: z.string().optional(),
+  city: z.string().optional(),
+  latitude: z.string().optional(),
+  longitude: z.string().optional(),
   height: z.string().min(1, { message: "Height is required." }),
   weight: z.string().min(1, { message: "Weight is required." }),
   bodyFat: z.string().optional(),
@@ -42,7 +44,9 @@ export function ProfileForm() {
       name: "",
       age: "",
       gender: "",
-      location: "",
+      city: "",
+      latitude: "",
+      longitude: "",
       height: "",
       weight: "",
       bodyFat: "",
@@ -67,7 +71,9 @@ export function ProfileForm() {
           name: userProfile.name || "",
           age: userProfile.age?.toString() || "",
           gender: userProfile.gender || "",
-          location: userProfile.location || "",
+          city: userProfile.city || "",
+          latitude: userProfile.latitude?.toString() || "",
+          longitude: userProfile.longitude?.toString() || "",
           height: userProfile.height?.toString() || "",
           weight: userProfile.weight?.toString() || "",
           bodyFat: userProfile.body_fat?.toString() || "",
@@ -77,6 +83,35 @@ export function ProfileForm() {
       setLoading(false)
     })
   }, [form, router])
+
+  // Geolocation handler with reverse geocoding
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      toast({ title: "Geolocation not supported", description: "Your browser does not support geolocation." })
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude
+        const lon = pos.coords.longitude
+        form.setValue("latitude", lat.toString())
+        form.setValue("longitude", lon.toString())
+        // Reverse geocode to get city
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
+          const data = await res.json()
+          const city = data.address.city || data.address.town || data.address.village || data.address.state || ""
+          form.setValue("city", city)
+          toast({ title: "Location set", description: `City: ${city}, Lat: ${lat}, Lon: ${lon}` })
+        } catch (err: any) {
+          toast({ title: "Reverse geocoding failed", description: err.message })
+        }
+      },
+      (err) => {
+        toast({ title: "Location error", description: err.message })
+      }
+    )
+  }
 
   async function onSubmit(data: ProfileFormValues) {
     setIsSaving(true)
@@ -91,7 +126,9 @@ export function ProfileForm() {
       name: data.name,
       age: data.age ? parseInt(data.age) : null,
       gender: data.gender,
-      location: data.location,
+      city: data.city,
+      latitude: data.latitude ? parseFloat(data.latitude) : null,
+      longitude: data.longitude ? parseFloat(data.longitude) : null,
       height: parseFloat(data.height),
       weight: parseFloat(data.weight),
       body_fat: data.bodyFat ? parseFloat(data.bodyFat) : null,
@@ -183,12 +220,39 @@ export function ProfileForm() {
                     />
                     <FormField
                       control={form.control}
-                      name="location"
+                      name="city"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Location</FormLabel>
+                          <FormLabel>City</FormLabel>
                           <FormControl>
-                            <Input placeholder="Your location" {...field} />
+                            <Input placeholder="City" {...field} readOnly disabled />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button type="button" variant="outline" onClick={handleGetLocation} className="mb-2">Use My Location</Button>
+                    <FormField
+                      control={form.control}
+                      name="latitude"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Latitude</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Latitude" {...field} readOnly disabled />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="longitude"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Longitude</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Longitude" {...field} readOnly disabled />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

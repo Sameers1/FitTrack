@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -66,6 +66,27 @@ export function Sidebar() {
   const supabase = createClientComponentClient()
   const isMobile = useMobile()
   const [collapsed, setCollapsed] = useState(false)
+  const [userName, setUserName] = useState<string>("")
+  const [userEmail, setUserEmail] = useState<string>("")
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: auth } = await supabase.auth.getUser()
+      if (!auth.user) return
+      setUserEmail(auth.user.email || "")
+      const { data: userProfile } = await supabase
+        .from("users")
+        .select("name")
+        .eq("auth_id", auth.user.id)
+        .single()
+      if (userProfile && userProfile.name) {
+        setUserName(userProfile.name)
+      } else {
+        setUserName(auth.user.email?.split("@")[0] || "User")
+      }
+    }
+    fetchUser()
+  }, [])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -109,7 +130,7 @@ export function Sidebar() {
       >
         <Avatar className="h-10 w-10 border-2 border-primary/10 transition-transform duration-300 ease-in-out hover:scale-110">
           <AvatarImage src="/placeholder.svg?height=40&width=40" alt="User" />
-          <AvatarFallback>JD</AvatarFallback>
+          <AvatarFallback>{userName ? userName[0].toUpperCase() : "U"}</AvatarFallback>
         </Avatar>
         <div
           className={cn(
@@ -117,8 +138,8 @@ export function Sidebar() {
             collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100",
           )}
         >
-          <span className="text-sm font-medium">John Doe</span>
-          <span className="text-xs text-muted-foreground">Premium Member</span>
+          <span className="text-sm font-medium">{userName}</span>
+          <span className="text-xs text-muted-foreground">{userEmail}</span>
         </div>
       </div>
 

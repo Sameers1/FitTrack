@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { MetricCard } from "@/components/metric-card"
@@ -8,10 +8,53 @@ import { WaterTracker } from "@/components/water-tracker"
 import { Footprints, Droplets, Dumbbell } from "lucide-react"
 import { useMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
+import { supabase } from "@/lib/supabase"
 
 export function Dashboard() {
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [city, setCity] = useState<string | null>(null)
+  const [lat, setLat] = useState<number | null>(null)
+  const [lon, setLon] = useState<number | null>(null)
+  const [temperature, setTemperature] = useState<string | null>(null)
+  const [loadingWeather, setLoadingWeather] = useState(true)
   const isMobile = useMobile()
+
+  useEffect(() => {
+    // Fetch user city/lat/lon from Supabase
+    const fetchProfile = async () => {
+      const { data: auth } = await supabase.auth.getUser()
+      if (!auth.user) return
+      const { data: userProfile } = await supabase
+        .from("users")
+        .select("city, latitude, longitude")
+        .eq("auth_id", auth.user.id)
+        .single()
+      if (userProfile) {
+        setCity(userProfile.city)
+        setLat(userProfile.latitude)
+        setLon(userProfile.longitude)
+        if (userProfile.latitude && userProfile.longitude) {
+          fetchWeather(userProfile.latitude, userProfile.longitude)
+        } else {
+          setLoadingWeather(false)
+        }
+      } else {
+        setLoadingWeather(false)
+      }
+    }
+    const fetchWeather = async (latitude: number, longitude: number) => {
+      try {
+        const res = await fetch(`https://wttr.in/${latitude},${longitude}?format=%t`)
+        const tempText = await res.text()
+        setTemperature(tempText)
+      } catch (e) {
+        setTemperature(null)
+      } finally {
+        setLoadingWeather(false)
+      }
+    }
+    fetchProfile()
+  }, [])
 
   // Animation classes for elements when they mount
   const animationClass = "animate-in scale-in duration-500"
@@ -24,6 +67,17 @@ export function Dashboard() {
           <p className="text-muted-foreground animate-in fade-in duration-300" style={{ animationDelay: "100ms" }}>
             {format(currentDate, "EEEE, dd MMM")}
           </p>
+        </div>
+
+        <div className="mb-4 flex items-center gap-4">
+          {city && <span className="text-lg font-medium">{city}</span>}
+          {loadingWeather ? (
+            <span className="text-muted-foreground">Loading weather...</span>
+          ) : temperature ? (
+            <span className="text-lg">{temperature}</span>
+          ) : (
+            <span className="text-muted-foreground">Weather unavailable</span>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
