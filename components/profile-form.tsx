@@ -97,7 +97,7 @@ export function ProfileForm() {
       body_fat: data.bodyFat ? parseFloat(data.bodyFat) : null,
       activity_level: data.activityLevel,
       updated_at: new Date().toISOString(),
-    })
+    }, { onConflict: "auth_id" })
     setIsSaving(false)
     if (error) {
       toast({ title: "Error", description: error.message })
