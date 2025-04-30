@@ -26,11 +26,14 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background">
       <Sidebar />
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1">
+        <div className="flex items-center gap-4 border-b px-6 py-4">
+          <h1 className="text-2xl font-semibold">Dashboard</h1>
+        </div>
         <Dashboard />
       </div>
-    </main>
+    </div>
   )
 }

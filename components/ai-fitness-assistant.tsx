@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { cn } from "@/lib/utils"
 
 interface UserData {
   age: number
@@ -45,12 +44,7 @@ const DEFAULT_PROFILE: Partial<UserData> = {
 }
 
 export function AiFitnessAssistant() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content: "Hi! I'm your AI Fitness Assistant. I can help you with workout plans, nutrition advice, and tracking your fitness goals. How can I help you today?"
-    }
-  ])
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [userData, setUserData] = useState<UserData | null>(null)
@@ -205,52 +199,96 @@ export function AiFitnessAssistant() {
       const userContext = userData ? {
         bmi: userData.weight_kg > 0 && userData.height_cm > 0 
           ? (userData.weight_kg / Math.pow(userData.height_cm / 100, 2)).toFixed(1)
-          : null,
-        ...userData
-      } : null
+          : "not available",
+        profile: `
+${userData.age > 0 ? `- Age: ${userData.age} years` : ""}
+${userData.height_cm > 0 ? `- Height: ${userData.height_cm}cm` : ""}
+${userData.weight_kg > 0 ? `- Weight: ${userData.weight_kg}kg` : ""}
+${userData.weight_kg > 0 && userData.height_cm > 0 ? `- BMI: ${(userData.weight_kg / Math.pow(userData.height_cm / 100, 2)).toFixed(1)}` : ""}
+- Fitness Level: ${userData.fitness_level}
+- Fitness Goals: ${userData.fitness_goals.join(", ")}
+${userData.health_conditions?.length ? `- Health Conditions: ${userData.health_conditions.join(", ")}` : ""}
+${userData.dietary_restrictions?.length ? `- Dietary Restrictions: ${userData.dietary_restrictions.join(", ")}` : ""}
+- Preferred Workout Days: ${userData.preferred_workout_days.join(", ")}
+- Preferred Workout Time: ${userData.preferred_workout_time}
+${userData.hydration?.today ? `
+Hydration Today:
+- Water Intake: ${userData.hydration.today.water_ml}ml
+- Hydration Level: ${userData.hydration.today.hydration_percent}%
+- Temperature: ${userData.hydration.today.temperature_c}°C` : ""}
+${userData.hydration?.weeklyAverage ? `
+Weekly Hydration Average:
+- Water Intake: ${userData.hydration.weeklyAverage.water_ml}ml
+- Hydration Level: ${userData.hydration.weeklyAverage.hydration_percent}%` : ""}`
+      } : {
+        bmi: "not available",
+        profile: "No user data available. Providing general advice."
+      }
 
-      const response = await fetch("https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2", {
+      const response = await fetch("https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${process.env.NEXT_PUBLIC_HUGGING_FACE_API_KEY}`,
         },
         body: JSON.stringify({
-          inputs: `<s>[INST] You are a professional fitness trainer and nutritionist. Keep responses concise and practical. Use the following user context if available to personalize advice: ${JSON.stringify(userContext)}
+          inputs: `<|system|>You are a professional fitness trainer who provides concise, practical advice. Always consider the user's profile when giving advice:
+${userContext.profile}
 
-Question: ${input} [/INST]</s>`,
+Keep responses under 3 sentences and reference relevant user data when appropriate. If data is missing or shows 0 values, provide general advice while encouraging the user to complete their profile. For hydration advice, consider temperature and current hydration levels when making recommendations.</s>
+<|user|>${input}</s>
+<|assistant|>`,
           parameters: {
             max_new_tokens: 150,
-            temperature: 0.7,
-            top_p: 0.95,
-            repetition_penalty: 1.2,
-            truncate: 1000,
+            temperature: 0.5,
+            top_p: 0.9,
+            do_sample: true,
             return_full_text: false
-          },
+          }
         }),
       })
 
       if (!response.ok) {
-        throw new Error("Failed to get response")
+        if (response.status === 404) {
+          throw new Error("Model not found or unavailable. Please try again later.")
+        }
+        throw new Error(`API request failed with status: ${response.status}`)
       }
 
-      const result = await response.json()
-      // Clean up the response by removing any system prompts or instruction tags
-      const cleanedResponse = result[0].generated_text
-        .replace(/\[INST\].*?\[\/INST\]/gs, '')
-        .replace(/<s>|<\/s>/g, '')
-        .trim()
+      const data = await response.json()
       
-      const assistantMessage: Message = { 
-        role: "assistant", 
-        content: cleanedResponse
+      let aiResponseText = ""
+      if (Array.isArray(data) && data[0]?.generated_text) {
+        aiResponseText = data[0].generated_text
+      } else if (typeof data === 'object' && data.generated_text) {
+        aiResponseText = data.generated_text
+      } else if (typeof data === 'string') {
+        aiResponseText = data
+      } else {
+        console.error("Unexpected response format:", data)
+        throw new Error('Unexpected response format from the API')
       }
-      setMessages(prev => [...prev, assistantMessage])
+
+      // Clean up the response
+      aiResponseText = aiResponseText
+        .replace(/<\|assistant\|>/g, '')
+        .replace(/<\|user\|>/g, '')
+        .replace(/<\|system\|>/g, '')
+        .replace(/<\/s>/g, '')
+        .trim()
+
+      const aiResponse: Message = { 
+        role: "assistant", 
+        content: aiResponseText
+      }
+      setMessages(prev => [...prev, aiResponse])
     } catch (error) {
-      console.error("Error:", error)
+      console.error("Error calling AI API:", error)
       const errorMessage: Message = {
         role: "assistant",
-        content: "I apologize, but I'm having trouble connecting right now. Please try again in a moment."
+        content: error instanceof Error 
+          ? `Sorry, there was an error: ${error.message}. Please try again in a moment.`
+          : "Sorry, an unexpected error occurred. Please try again in a moment."
       }
       setMessages(prev => [...prev, errorMessage])
     } finally {
@@ -259,75 +297,82 @@ Question: ${input} [/INST]</s>`,
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-4">
-          {messages.map((message, i) => (
-            <div
-              key={i}
-              className={cn(
-                "flex gap-3 p-4 rounded-lg",
-                message.role === "assistant"
-                  ? "bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20"
-                  : "bg-accent/50"
-              )}
-            >
-              <div className={cn(
-                "flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full",
-                message.role === "assistant" 
-                  ? "bg-gradient-to-r from-violet-500 to-fuchsia-500" 
-                  : "bg-accent-foreground"
-              )}>
-                {message.role === "assistant" ? (
-                  <Bot className="h-5 w-5 text-white" />
-                ) : (
-                  <User className="h-5 w-5 text-background" />
-                )}
-              </div>
-              <div className="flex-1 space-y-2">
-                <div className="prose prose-neutral dark:prose-invert">
-                  {message.content}
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Bot className="h-6 w-6" />
+          AI Fitness Assistant
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ScrollArea className="h-[400px] pr-4 mb-4">
+          <div className="space-y-4">
+            {messages.length === 0 ? (
+              <div className="text-center text-muted-foreground py-8">
+                <p>Ask me anything about fitness, workouts, or health!</p>
+                <div className="mt-2 text-sm">
+                  Try questions like:
+                  <ul className="mt-1 space-y-1">
+                    <li>"What's the best workout for my fitness level?"</li>
+                    <li>"How many calories should I eat to reach my goals?"</li>
+                    <li>"What exercises are safe for my age and fitness level?"</li>
+                  </ul>
                 </div>
               </div>
-            </div>
-          ))}
-          {isLoading && (
-            <div className="flex gap-3 p-4 rounded-lg bg-gradient-to-r from-violet-500/10 to-fuchsia-500/10 border border-violet-500/20">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500">
-                <Bot className="h-5 w-5 text-white animate-pulse" />
-              </div>
-              <div className="flex-1 space-y-2">
-                <div className="prose prose-neutral dark:prose-invert">
-                  <span className="inline-flex gap-1">
-                    <span className="animate-bounce">.</span>
-                    <span className="animate-bounce" style={{ animationDelay: "0.2s" }}>.</span>
-                    <span className="animate-bounce" style={{ animationDelay: "0.4s" }}>.</span>
-                  </span>
+            ) : (
+              messages.map((message, index) => (
+                <div
+                  key={index}
+                  className={`flex gap-2 ${message.role === "assistant" ? "flex-row" : "flex-row-reverse"}`}
+                >
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    {message.role === "assistant" ? (
+                      <Bot className="h-5 w-5" />
+                    ) : (
+                      <User className="h-5 w-5" />
+                    )}
+                  </div>
+                  <div
+                    className={`rounded-lg px-4 py-2 max-w-[80%] ${
+                      message.role === "assistant"
+                        ? "bg-muted"
+                        : "bg-primary text-primary-foreground ml-auto"
+                    }`}
+                  >
+                    {message.content}
+                  </div>
+                </div>
+              ))
+            )}
+            {isLoading && (
+              <div className="flex gap-2">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Bot className="h-5 w-5" />
+                </div>
+                <div className="bg-muted rounded-lg px-4 py-2">
+                  <div className="flex gap-1">
+                    <span className="animate-bounce">●</span>
+                    <span className="animate-bounce" style={{ animationDelay: "0.2s" }}>●</span>
+                    <span className="animate-bounce" style={{ animationDelay: "0.4s" }}>●</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+            )}
+          </div>
+        </ScrollArea>
 
-      <form onSubmit={handleSubmit} className="p-4 border-t border-violet-500/20 bg-gradient-to-r from-violet-500/5 to-fuchsia-500/5">
-        <div className="flex gap-2">
+        <form onSubmit={handleSubmit} className="flex gap-2">
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask me anything about fitness, nutrition, or your health goals..."
-            className="flex-1 bg-background/50 backdrop-blur-sm border-violet-500/20"
+            placeholder="Ask a fitness question..."
+            disabled={isLoading}
           />
-          <Button 
-            type="submit" 
-            size="icon"
-            disabled={isLoading || !input.trim()}
-            className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-500/20 hover:shadow-xl hover:shadow-violet-500/30 transition-shadow"
-          >
+          <Button type="submit" disabled={isLoading || !input.trim()}>
             <Send className="h-4 w-4" />
           </Button>
-        </div>
-      </form>
-    </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 } 
